@@ -1,5 +1,9 @@
 Simple shop using js
 
+to set enviroment and install necessary packages:
+```
+npm install
+```
 to run:
 ```
 node --trace-deprecation server.js
