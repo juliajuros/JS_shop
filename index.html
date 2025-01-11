@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 50px;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .products, .categories {
+            margin-top: 20px;
+        }
+        .product, .category {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 5px;
+            width: 300px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shop</h1>
+
+    <div class="search-container">
+        <input type="text" id="search-query" placeholder="Szukaj produktów"/>
+        <button onclick="searchProducts()">Szukaj</button>
+    </div>
+    <button onclick="window.location.href='basket.html'">Przejdź do Koszyka</button>
+
+    <div class="container">
+        <button onclick="getProducts()">Pokaż produkty</button>
+        <button onclick="getCategories()">Pokaż kategorie</button>
+    </div>
+
+    <div class="products" id="products"></div>
+    <div class="categories" id="categories"></div>
+
+    <script>
+        const apiBaseUrl = 'http://localhost:5000/api';
+
+        async function getProducts() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/products`);
+                const products = await response.json();
+                const productsContainer = document.getElementById('products');
+                productsContainer.innerHTML = '<h2>Produkty</h2>';
+
+                const inStockProducts = [];
+                const outOfStockProducts = [];
+
+                products.forEach(product => {
+                    if (product.number > 0) {
+                        inStockProducts.push(product);
+                    } else {
+                        outOfStockProducts.push(product);
+                    }
+                });
+
+                inStockProducts.forEach(product => {
+                    productsContainer.innerHTML += `
+                        <div class="product" id="product-${product._id}">
+                            <h3>${product.name}</h3>
+                            <p>Cena: ${product.price} PLN</p>
+                            <p>Kategoria: ${product.category}</p>
+                            <p>Ilość w magazynie: ${product.number}</p>
+                            <button onclick="addToBasket('${product._id}')">Dodaj do koszyka</button>
+                        </div>
+                    `;
+                });
+
+                outOfStockProducts.forEach(product => {
+                    productsContainer.innerHTML += `
+                        <div class="product out-of-stock" id="product-${product._id}">
+                            <h3>${product.name}</h3>
+                            <p>Cena: ${product.price} PLN</p>
+                            <p>Kategoria: ${product.category}</p>
+                            <p>Ilość w magazynie: ${product.number}</p>
+                            <p><strong>Brak w magazynie</strong></p>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                alert('Błąd wczytywania produktów');
+            }
+        }
+        async function getCategories() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/categories`);
+                const categories = await response.json();
+                const categoriesContainer = document.getElementById('categories');
+                categoriesContainer.innerHTML = '<h2>Kategorie</h2>';
+                categories.forEach(category => {
+                    categoriesContainer.innerHTML += `
+                        <div class="category">
+                            <p onclick="filterProductsByCategory('${category}')">${category}</p>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                alert('Błąd wczytywania kategorii');
+            }
+        }
+        async function filterProductsByCategory(category) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/products?category=${encodeURIComponent(category)}`);
+                const products = await response.json();
+
+                const inStockProducts = [];
+                const outOfStockProducts = [];
+
+                const filteredProducts = products.filter(product => product.category === category);
+
+                const productsContainer = document.getElementById('products');
+                productsContainer.innerHTML = `<h2>Produkty z kategorii: ${category}</h2>`;
+
+                if (filteredProducts.length === 0) {
+                    productsContainer.innerHTML += '<p>Brak produktów w tej kategorii</p>';
+                    return;
+                }
+                filteredProducts.forEach(product => {
+                    if (product.number > 0) {
+                        inStockProducts.push(product);
+                    } else {
+                        outOfStockProducts.push(product);
+                    }
+                });
+
+                if (inStockProducts.length === 0 && outOfStockProducts.length === 0) {
+                    productsContainer.innerHTML += '<p>Brak produktów w tej kategorii</p>';
+                    return;
+                }
+
+                inStockProducts.forEach(product => {
+                    productsContainer.innerHTML += `
+                        <div class="product" id="product-${product._id}">
+                            <h3>${product.name}</h3>
+                            <p>Cena: ${product.price} PLN</p>
+                            <p>Kategoria: ${product.category}</p>
+                            <p>Ilość w magazynie: ${product.number}</p>
+                            <button onclick="addToBasket('${product._id}')">Dodaj do koszyka</button>
+                        </div>
+                    `;
+                });
+
+                outOfStockProducts.forEach(product => {
+                    productsContainer.innerHTML += `
+                        <div class="product out-of-stock" id="product-${product._id}">
+                            <h3>${product.name}</h3>
+                            <p>Cena: ${product.price} PLN</p>
+                            <p>Kategoria: ${product.category}</p>
+                            <p>Ilość w magazynie: ${product.number}</p>
+                            <p><strong>Brak w magazynie</strong></p>
+                        </div>
+                    `;
+                });
+
+            } catch (error) {
+                console.error('Błąd filtrowania produktów', error);
+                alert('Błąd filtrowania produktów');
+            }
+        }
+        async function searchProducts() {
+            const query = document.getElementById('search-query').value.trim();
+
+            if (!query) {
+                alert("Proszę wpisać zapytanie do wyszukiwania.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${apiBaseUrl}/products/search?q=${query}`);
+                
+                if (!response.ok) {
+                    alert('Błąd w wyszukiwania produktów: ' + response.statusText);
+                    return;
+                }
+
+                const products = await response.json();
+
+                if (!Array.isArray(products)) {
+                    alert('Błąd w wyszukiwania produktów. Otrzymano niewłaściwy format danych.');
+                    return;
+                }
+
+                const productsContainer = document.getElementById('products');
+                productsContainer.innerHTML = '<h2>Wyniki wyszukiwania</h2>';
+
+                if (products.length === 0) {
+                    productsContainer.innerHTML += '<p>Brak wyników wyszukiwania</p>';
+                    return;
+                }
+                const inStockProducts = [];
+                const outOfStockProducts = [];
+
+                products.forEach(product => {
+                    if (product.number > 0) {
+                        inStockProducts.push(product);
+                    } else {
+                        outOfStockProducts.push(product);
+                    }
+                });
+
+                inStockProducts.forEach(product => {
+                    productsContainer.innerHTML += `
+                        <div class="product" id="product-${product._id}">
+                            <h3>${product.name}</h3>
+                            <p>Cena: ${product.price} PLN</p>
+                            <p>Kategoria: ${product.category}</p>
+                            <p>Ilość w magazynie: ${product.number}</p>
+                            <button onclick="addToBasket('${product._id}')">Dodaj do koszyka</button>
+                        </div>
+                    `;
+                });
+
+                outOfStockProducts.forEach(product => {
+                    productsContainer.innerHTML += `
+                        <div class="product out-of-stock" id="product-${product._id}">
+                            <h3>${product.name}</h3>
+                            <p>Cena: ${product.price} PLN</p>
+                            <p>Kategoria: ${product.category}</p>
+                            <p>Ilość w magazynie: ${product.number}</p>
+                            <p><strong>Brak w magazynie</strong></p>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                console.error('Błąd wyszukiwania produktów', error);
+                alert('Błąd wyszukiwania produktów');
+            }
+        }
+
+        let basket = JSON.parse(localStorage.getItem('basket')) || [];
+
+        function addToBasket(productId) {
+            console.log(productId)
+            console.log(`product-${productId}`)
+            console.log(document)
+            const productElement = document.getElementById(`product-${productId}`);
+            console.log(productElement)
+            const name = productElement.querySelector('h3').textContent;
+            const price = parseFloat(productElement.querySelector('p').textContent.split(' ')[1]);
+            const category = productElement.querySelectorAll('p')[1].textContent.split(': ')[1];
+            const number = parseFloat(productElement.querySelectorAll('p')[2].textContent.split(': ')[1]);
+
+            const product = { _id: productId, name, price, category, quantity: 1, max_quantity: number };
+            console.log(product)
+            const existingProduct = basket.find(item => item._id === productId);
+            if (existingProduct) {
+                if (existingProduct.quantity < number) {
+                    existingProduct.quantity += 1;
+                } else {
+                    alert(`Nie można dodać więcej. Maksymalna ilość to ${number}.`);
+                }
+            } else {
+                basket.push(product);
+            }
+
+            localStorage.setItem('basket', JSON.stringify(basket));
+        }
+
+    </script>
+</body>
+</html>

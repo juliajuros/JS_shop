@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Koszyk</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 50px;
+        }
+        .basket-container {
+            margin-top: 20px;
+            width: 600px;
+        }
+        .basket-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+        .payment-info {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+            width: 600px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Twój Koszyk</h1>
+    <div class="basket-container" id="basket-container"></div>
+    <h2 id="total-price">Suma: 0 PLN</h2>
+    <button onclick="clearBasket()">Wyczyść Koszyk</button>
+    <button onclick="window.location.href='index.html'">Powrót do Sklepu</button>
+    <button onclick="proceedToPayment()">Zapłać</button>
+    <div id="payment-info" class="payment-info"></div>
+
+    <script>
+        let basket = JSON.parse(localStorage.getItem('basket')) || [];
+        let paymentInfoElement;
+
+        function renderBasket() {
+            const basketContainer = document.getElementById('basket-container');
+            const totalPriceElement = document.getElementById('total-price');
+            basketContainer.innerHTML = '';
+
+            if (basket.length === 0) {
+                basketContainer.innerHTML = '<p>Twój koszyk jest pusty.</p>';
+                totalPriceElement.textContent = "Suma: 0 PLN";
+                return;
+            }
+
+            let totalPrice = 0;
+
+            basket.forEach((product, index) => {
+                totalPrice += product.price * product.quantity;
+
+                basketContainer.innerHTML += `
+                    <div class="basket-item">
+                        <div>
+                            <h3>${product.name}</h3>
+                            <p>${product.price} PLN x ${product.quantity}</p>
+                        </div>
+                        <div>
+                            <button onclick="changeQuantity(${index}, 1)">+</button>
+                            <button onclick="changeQuantity(${index}, -1)">-</button>
+                            <button onclick="removeFromBasket(${index})">Usuń</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            totalPriceElement.textContent = `Suma: ${totalPrice.toFixed(2)} PLN`;
+        }
+
+        function changeQuantity(index, change) {
+            const number = basket[index].max_quantity;
+
+            const newQuantity = basket[index].quantity + change;
+            console.log(newQuantity, number)
+
+            if (newQuantity > number) {
+                alert(`Nie można dodać więcej. Maksymalna ilość to ${number}.`);
+                return;
+            }
+
+            basket[index].quantity = newQuantity;
+
+            if (basket[index].quantity <= 0) {
+                basket.splice(index, 1);
+            }
+
+            localStorage.setItem('basket', JSON.stringify(basket));
+            renderBasket();
+        }
+
+        function removeFromBasket(index) {
+            basket.splice(index, 1);
+            localStorage.setItem('basket', JSON.stringify(basket));
+            renderBasket();
+        }
+
+        function clearBasket() {
+            basket = [];
+            localStorage.removeItem('basket');
+            renderBasket();
+        }
+        
+        function proceedToPayment() {
+            paymentInfoElement = document.getElementById('payment-info');
+
+            if (basket.length === 0) {
+                paymentInfoElement.innerHTML = "<p>Twój koszyk jest pusty. Nie możesz przejść do płatności.</p>";
+                return;
+            }
+
+            const totalPrice = basket.reduce((sum, product) => sum + product.price * product.quantity, 0);
+
+            paymentInfoElement.innerHTML = `
+                <p>Czy chcesz zapłacić <strong>${totalPrice.toFixed(2)} PLN</strong> za produkty w koszyku?</p>
+                <button onclick="confirmPayment()">Potwierdź płatność</button>
+                <button onclick="cancelPayment()">Anuluj</button>
+            `;
+        }
+
+        async function confirmPayment() {
+            const updates = basket.map(product => ({
+                id: product._id,
+                quantity: product.quantity
+            }));
+
+            try {
+                const paymentSuccessful = true;
+
+                if (paymentSuccessful) {
+                const response = await fetch('http://localhost:5000/api/products/update-stock', {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ updates })
+                });
+
+                if (response.ok) {
+                    paymentInfoElement.innerHTML = "<p>Płatność zakończona sukcesem. Dziękujemy za zakupy!</p>";
+                    clearBasket();
+                } else {
+                    const error = await response.json();
+                    paymentInfoElement.innerHTML = `<p>Błąd: ${error.error}</p>`;
+                }
+                } else {
+                paymentInfoElement.innerHTML = "<p>Płatność nie powiodła się. Spróbuj ponownie.</p>";
+                }
+            } catch (error) {
+                paymentInfoElement.innerHTML = "<p>Wystąpił błąd podczas przetwarzania płatności.</p>";
+                console.error(error);
+            }
+            clearBasket();
+        }
+
+        function cancelPayment() {
+            const paymentInfoElement = document.getElementById('payment-info');
+            paymentInfoElement.innerHTML = "<p>Płatność została anulowana.</p>";
+        }
+
+        renderBasket();
+    </script>
+</body>
+</html>
